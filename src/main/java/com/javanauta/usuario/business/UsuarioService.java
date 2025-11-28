@@ -7,6 +7,7 @@ import com.javanauta.usuario.infrastructure.entity.Usuario;
 import com.javanauta.usuario.infrastructure.exception.ConflictException;
 import com.javanauta.usuario.infrastructure.exception.ResourceNotFoundException;
 import com.javanauta.usuario.infrastructure.repository.UsuarioRepository;
+import com.javanauta.usuario.infrastructure.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +21,7 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioConvernter usuarioConvernter;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     public UsuarioDTO salvaUsuario(UsuarioDTO usuarioDTO){
         emailExiste(usuarioDTO.getEmail());
@@ -55,4 +57,24 @@ public class UsuarioService {
         usuarioRepository.deleteByEmail(email);
     }
 
+
+    public UsuarioDTO atualizaDadosUsuario(String token, UsuarioDTO dto){
+
+        //busca o email do usuario atravez do token (tira a obrigatoriedade de passar o email)
+        String email = jwtUtil.extrairEmailToken(token.substring(7));
+
+        //criptografia de senha
+        dto.setSenha(dto.getSenha() !=null ? passwordEncoder.encode(dto.getSenha()) : null);
+        // busca os dados do usuario no banco de dados
+
+        Usuario usuarioEntity = usuarioRepository.findByEmail(email).orElseThrow(() ->
+              new ResourceNotFoundException("Email nao localizado"));
+        //mesclamos os dados que recebemos na requisição DTO com os dados do db
+
+        Usuario usuario = usuarioConvernter.updateUsuario(dto, usuarioEntity);
+        //criptografica na senha novamente
+        usuario.setSenha(passwordEncoder.encode(usuario.getPassword()));
+        //salvamos os dados do usuario convertidos e depois pegou o retornoe  converteu para Usuario DTO
+        return usuarioConvernter.paraUsuarioDTO(usuarioRepository.save(usuario));
+    }
 }
